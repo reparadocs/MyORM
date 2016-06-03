@@ -1,6 +1,6 @@
 To import:
 
-from MyORM import *
+    from MyORM import *
 
 To use:
 
@@ -25,7 +25,7 @@ Create a model to use in the db:
         self.foreignVar = l[5]
         self.dateVar = l[6]
 
-  /* The init method MUST BE like this, note the self.rowid = l[0] */
+The init method MUST BE like this, note the self.rowid = l[0]
 
 Fields have an optional null, unique, and default parameters:
   Null is default True
