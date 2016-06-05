@@ -17,6 +17,15 @@ class MyORM:
     else:
       return str(val)
 
+  def doesTableExist(self, model):
+    statement = "SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'"
+    statement += model.__name__ + "\';"
+    self.execute(statement)
+    res = self.cursor.fetchall()
+    if len(res) > 0:
+      return True
+    return False
+
   def createTable(self, model):
     statement = 'CREATE TABLE '
     statement += model.__name__ + ' ( '
@@ -33,7 +42,6 @@ class MyORM:
         statement += ' DEFAULT ' + str(field.default)
       statement += ', '
     statement += 'PRIMARY KEY(ROWID));'
-    print statement
     self.execute(statement)
 
   def dropTable(self, model):
@@ -53,7 +61,6 @@ class MyORM:
     fields = fields[:-2]
     vals = vals[:-2]
     statement += ' (' + fields + ') VALUES (' + vals + ');'
-    print statement
     self.execute(statement)
     return self.cursor.lastrowid
 
