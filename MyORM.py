@@ -1,5 +1,6 @@
 import sqlite3
 import inspect
+import global_vars
 
 class MyORM:
   def __init__(self, name):
@@ -12,10 +13,18 @@ class MyORM:
     self.conn.commit()
 
   def _valToStr(self, val):
-    if type(val) is str:
-      return "'" + val + "'"
+    if type(val) is str or type(val) is unicode:
+      return "\"" + self.sanitize(str(val)) + "\""
     else:
       return str(val)
+
+  def sanitize(self, val):
+    check_encoding = val.encode("utf-8", errors="strict").decode("utf-8")
+    null_i = check_encoding.find("\x00")
+    if null_i >= 0:
+      raise ValueError("NULL Not Allowed")
+
+    return val.replace("\"", "\"\"")
 
   def doesTableExist(self, model):
     statement = "SELECT name FROM sqlite_master WHERE type=\'table\' AND name=\'"
@@ -55,21 +64,27 @@ class MyORM:
     for name, field in item.__class__.__dict__.items():
         if field is None or isinstance(field, Field) == False:
           continue
+        if name not in item.__dict__ or item.__dict__[name] is None or isinstance(item.__dict__[name], Field):
+          continue
         value = item.__dict__[name]
         fields += name + ', '
         vals += self._valToStr(value) + ', '
     fields = fields[:-2]
     vals = vals[:-2]
     statement += ' (' + fields + ') VALUES (' + vals + ');'
+    print statement
     self.execute(statement)
     return self.cursor.lastrowid
 
   def insert(self, item):
-    if type(item) is list or type(item) is tuple:
-      for i in item:
-        i.rowid = self._insert(item)
-    else:
-      item.rowid = self._insert(item)
+    try:
+      if type(item) is list or type(item) is tuple:
+        for i in item:
+          i.rowid = self._insert(item)
+      else:
+        item.rowid = self._insert(item)
+    except sqlite3.IntegrityError:
+      return None
     return item
 
   def _delete(self, item):
@@ -118,7 +133,8 @@ class MyORM:
     return item
 
   def getAll(self, model):
-    statement = 'SELECT * FROM ' + model.__name__ + ' ;'
+    order = global_vars.model_order[model.__name__]
+    statement = 'SELECT ' + order + ' FROM ' + model.__name__ + ' ;'
     self.execute(statement)
     res = self.cursor.fetchall()
     models = []
@@ -127,13 +143,22 @@ class MyORM:
     return models
 
   def filter(self, model, condition):
-    statement = 'SELECT * FROM ' + model.__name__ + ' WHERE ' + condition + ';'
+    order = global_vars.model_order[model.__name__]
+    statement = 'SELECT ' + order + ' FROM ' + model.__name__ + ' WHERE ' + condition + ';'
     self.execute(statement)
     res = self.cursor.fetchall()
     models = []
     for r in res:
       models.append(model(list(r)))
     return models
+
+  def get(self, model, model_id):
+    condition = 'ROWID = ' + str(model_id)
+    match = self.filter(model, condition)
+    model = None
+    if len(match) > 0:
+        model = match[0]
+    return model
 
 class Model(object):
   rowid = None
